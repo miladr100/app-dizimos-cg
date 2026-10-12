@@ -61,6 +61,29 @@ select:focus {
   padding: 22px 24px 54px;
 }
 
+.install-banner {
+  margin-bottom: 18px;
+  border: 1px solid var(--stroke);
+  background: #1e382d;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.install-banner p {
+  margin: 0 0 12px;
+  color: #d5f7e7;
+  line-height: 1.5;
+}
+
+.install-banner .primary {
+  width: 100%;
+}
+
+.install-banner .install-hint {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;

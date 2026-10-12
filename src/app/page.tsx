@@ -5,6 +5,7 @@ import { Pencil, Trash2, RefreshCw, Users, Receipt } from 'lucide-react';
 import { Member, Entry, categories, entryCategories, payments } from '@/lib/types';
 import { blankMember, money } from '@/lib/constants';
 import { api, blankEntry, fmtDate, message, type EntryForm } from '@/lib/helpers';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 type Section = 'entries' | 'members';
 type Notice = { message: string; error: boolean } | null;
@@ -170,6 +171,7 @@ export default function Home() {
 
   return (
     <main className="shell">
+      <InstallPrompt />
       <header className="topbar">
         <nav className="tabs" aria-label="Navegação">
           <button
