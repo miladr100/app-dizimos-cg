@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2, RefreshCw, Users, Receipt } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Users, Receipt, Eye, EyeOff } from 'lucide-react';
 import { Member, Entry, categories, entryCategories, payments } from '@/lib/types';
 import { blankMember, money } from '@/lib/constants';
 import { api, blankEntry, fmtDate, message, type EntryForm } from '@/lib/helpers';
 import { InstallPrompt } from '@/components/InstallPrompt';
 
-type Section = 'entries' | 'members';
+type Section = 'entries' | 'members' | 'report';
 type Notice = { message: string; error: boolean } | null;
 
 function fold(value: string) {
@@ -26,10 +26,11 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [query, setQuery] = useState('');
-  const [confirm, setConfirm] = useState<{ type: Section; id: string; name: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ type: 'entries' | 'members'; id: string; name: string } | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [nameQuery, setNameQuery] = useState('');
   const [nameOpen, setNameOpen] = useState(false);
+  const [showTotal, setShowTotal] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,6 +72,20 @@ export default function Home() {
       ),
     [entries, query],
   );
+
+  const entriesTotal = useMemo(
+    () => filteredEntries.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0),
+    [filteredEntries],
+  );
+
+  const entryComplete =
+    entry.name.trim().length >= 2 &&
+    entry.date.trim().length > 0 &&
+    Number.isFinite(entry.amount) &&
+    entry.amount > 0 &&
+    entry.reference.trim().length > 0 &&
+    entry.category.trim().length > 0 &&
+    entry.payment.trim().length > 0;
 
   async function saveMember(ev: React.FormEvent) {
     ev.preventDefault();
@@ -230,6 +245,13 @@ export default function Home() {
           >
             Membros
           </button>
+          <button
+            type="button"
+            className={'tab ' + (section === 'report' ? 'active' : '')}
+            onClick={() => switchTo('report')}
+          >
+            Consulta
+          </button>
         </nav>
         <span className="status">
           <span className="dot" />
@@ -243,6 +265,98 @@ export default function Home() {
         </div>
       )}
 
+      {section === 'report' ? (
+        <section className="report">
+          <div className="eyebrow">CONSULTA</div>
+          <h1 className="heading">Lançamentos</h1>
+          <p className="subtitle">Visão dos registros salvos, sem alteração.</p>
+          <div className="total-banner">
+            <div>
+              <span className="eyebrow">TOTAL</span>
+              <div className="total-row">
+                <strong>{showTotal ? money.format(entriesTotal) : 'R$ •••••'}</strong>
+                <button
+                  type="button"
+                  className="eye-btn"
+                  aria-pressed={showTotal}
+                  aria-label={showTotal ? 'Esconder total' : 'Mostrar total'}
+                  onClick={() => setShowTotal((visible) => !visible)}
+                >
+                  {showTotal ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <span className="counter">{filteredEntries.length}</span>
+          </div>
+          <div className="toolbar">
+            <input
+              className="search"
+              aria-label="Pesquisar lançamentos"
+              placeholder="Buscar lançamentos..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button
+              type="button"
+              className="mini"
+              aria-label="Atualizar listas"
+              title="Atualizar"
+              onClick={() => void refresh()}
+              disabled={loading}
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+          {loading ? (
+            <div className="loader">Atualizando planilha...</div>
+          ) : filteredEntries.length === 0 ? (
+            <div className="blank">
+              <div className="round-icon">
+                <Receipt size={23} />
+              </div>
+              <h3>{query ? 'Nenhum resultado encontrado' : 'Nenhum lançamento ainda'}</h3>
+              <p>
+                {query
+                  ? 'Tente outro termo.'
+                  : 'Os registros salvos aparecerão aqui, do mais recente para o mais antigo.'}
+              </p>
+            </div>
+          ) : (
+            <div className="list">
+              {filteredEntries.map((item) => (
+                <article className="item" key={item.id}>
+                  <div className="entry-line">
+                    <div>
+                      <span>Data</span>
+                      <strong>{fmtDate(item.date)}</strong>
+                    </div>
+                    <div>
+                      <span>Nome</span>
+                      <strong>{item.name}</strong>
+                    </div>
+                    <div>
+                      <span>Referência</span>
+                      <strong>{item.reference || '—'}</strong>
+                    </div>
+                    <div>
+                      <span>Valor</span>
+                      <strong className="amount">{money.format(item.amount)}</strong>
+                    </div>
+                    <div>
+                      <span>Categoria</span>
+                      <strong>{item.category}</strong>
+                    </div>
+                    <div>
+                      <span>Pagamento</span>
+                      <strong>{item.payment}</strong>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
       <div className="columns">
         <section>
           <div className="eyebrow">{section === 'entries' ? 'NOVO REGISTRO' : 'CADASTRO'}</div>
@@ -417,7 +531,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="actions">
-                <button className="primary" disabled={saving || (!members.length && !entryEdit)}>
+                <button className="primary entry-save" disabled={saving || !entryComplete}>
                   {saving ? 'Salvando...' : entryEdit ? 'Salvar alterações' : 'Salvar lançamento'}
                 </button>
                 {entryEdit && (
@@ -543,6 +657,7 @@ export default function Home() {
           )}
         </section>
       </div>
+      )}
 
       {confirm && (
         <div

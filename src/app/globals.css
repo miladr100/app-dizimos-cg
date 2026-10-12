@@ -94,6 +94,7 @@ select:focus {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border: 1px solid var(--stroke);
   padding: 4px;
@@ -275,6 +276,17 @@ select:focus {
   background: #c3a773;
 }
 
+.primary.entry-save:not(:disabled) {
+  background: #1ed760;
+  color: #04210f;
+  opacity: 1;
+}
+
+.primary.entry-save:hover:not(:disabled) {
+  background: #3cf07a;
+  opacity: 1;
+}
+
 .secondary {
   background: transparent;
   border: 1px solid var(--stroke);
@@ -442,6 +454,89 @@ select:focus {
   border-color: #814d44;
 }
 
+.report {
+  max-width: 980px;
+}
+
+.total-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: #1e382d;
+}
+
+.total-banner strong {
+  display: block;
+  margin-top: 6px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  color: #8adfc4;
+}
+
+.total-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eye-btn {
+  width: 40px;
+  height: 40px;
+  margin-top: 6px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 50%;
+  background: #23382e;
+  color: #ecf5ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar .search {
+  margin-top: 0;
+}
+
+.toolbar .mini {
+  height: 44px;
+  margin-top: 0;
+}
+
+.entry-line {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.entry-line span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.entry-line strong {
+  display: block;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
 .loader {
   color: var(--muted);
   padding: 30px;
@@ -519,6 +614,14 @@ select:focus {
 
   .list {
     margin-top: 16px;
+  }
+
+  .entry-line {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .total-banner strong {
+    font-size: 30px;
   }
 }
 
