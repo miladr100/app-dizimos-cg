@@ -7,7 +7,7 @@ export function blankEntry() {
   return {
     date: todayLocal(),
     name: '',
-    reference: '',
+    reference: 'Dízimo 2026',
     amount: 0,
     category: 'Dízimo',
     payment: 'Pix',

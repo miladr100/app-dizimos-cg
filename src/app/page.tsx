@@ -10,6 +10,10 @@ import { InstallPrompt } from '@/components/InstallPrompt';
 type Section = 'entries' | 'members';
 type Notice = { message: string; error: boolean } | null;
 
+function fold(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+}
+
 export default function Home() {
   const [section, setSection] = useState<Section>('entries');
   const [members, setMembers] = useState<Member[]>([]);
@@ -24,6 +28,8 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [confirm, setConfirm] = useState<{ type: Section; id: string; name: string } | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [nameQuery, setNameQuery] = useState('');
+  const [nameOpen, setNameOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -101,6 +107,8 @@ export default function Home() {
       await api('entries', entryEdit ? 'PATCH' : 'POST', entryEdit ? { id: entryEdit, ...entry } : entry);
       setEntry(blankEntry());
       setEntryEdit(null);
+      setNameQuery('');
+      setNameOpen(false);
       await refresh();
       setNotice({
         error: false,
@@ -126,6 +134,8 @@ export default function Home() {
       if (confirm.type === 'entries' && entryEdit === confirm.id) {
         setEntry(blankEntry());
         setEntryEdit(null);
+        setNameQuery('');
+        setNameOpen(false);
       }
       setConfirm(null);
       await refresh();
@@ -157,6 +167,8 @@ export default function Home() {
       payment: e.payment,
     });
     setEntryEdit(e.id);
+    setNameQuery(e.name);
+    setNameOpen(false);
     setNotice(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -167,7 +179,37 @@ export default function Home() {
     setEntry(blankEntry());
     setEntryEdit(null);
     setMemberEdit(null);
+    setNameQuery('');
+    setNameOpen(false);
   };
+
+  const nameSuggestions = useMemo(() => {
+    const term = fold(nameQuery.trim());
+    if (!term) return [];
+    const found = members
+      .filter((m) => fold(m.name).includes(term))
+      .map((m) => ({ id: m.id, name: m.name, category: m.category }));
+    const original = entries.find((item) => item.id === entryEdit)?.name;
+    if (original && fold(original).includes(term) && !found.some((m) => fold(m.name) === fold(original))) {
+      found.unshift({ id: `legacy-${original}`, name: original, category: 'registro antigo' });
+    }
+    return found;
+  }, [members, nameQuery, entries, entryEdit]);
+
+  function onNameInput(value: string) {
+    setNameQuery(value);
+    setNameOpen(true);
+    const exact = members.find((m) => fold(m.name) === fold(value.trim()));
+    const original = entries.find((item) => item.id === entryEdit)?.name ?? '';
+    const kept = !exact && original && fold(value.trim()) === fold(original) ? original : '';
+    setEntry((v) => ({ ...v, name: exact ? exact.name : kept }));
+  }
+
+  function pickName(name: string) {
+    setNameQuery(name);
+    setEntry((v) => ({ ...v, name }));
+    setNameOpen(false);
+  }
 
   return (
     <main className="shell">
@@ -261,6 +303,56 @@ export default function Home() {
           ) : (
             <form className="panel" onSubmit={saveEntry}>
               <div className="form-grid">
+                <div className="field full">
+                  <label htmlFor="ename">Nome</label>
+                  <div className="name-search">
+                    <input
+                      id="ename"
+                      required
+                      autoComplete="off"
+                      role="combobox"
+                      aria-expanded={nameOpen && nameQuery.trim().length > 0}
+                      aria-controls="ename-list"
+                      aria-autocomplete="list"
+                      placeholder="Digite o nome do membro"
+                      value={nameQuery}
+                      onChange={(e) => onNameInput(e.target.value)}
+                      onFocus={() => {
+                        if (nameQuery.trim()) setNameOpen(true);
+                      }}
+                      onBlur={() => setNameOpen(false)}
+                    />
+                    {nameOpen && nameQuery.trim() && (
+                      <ul className="suggestions" id="ename-list" role="listbox">
+                        {nameSuggestions.length === 0 ? (
+                          <li className="suggestion-empty">Nenhum membro encontrado</li>
+                        ) : (
+                          nameSuggestions.map((m) => (
+                            <li key={m.id} role="presentation">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={entry.name === m.name}
+                                onMouseDown={(ev) => {
+                                  ev.preventDefault();
+                                  pickName(m.name);
+                                }}
+                              >
+                                <span>{m.name}</span>
+                                <span className="suggestion-meta">{m.category}</span>
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                  {!members.length && (
+                    <button className="secondary" type="button" onClick={() => switchTo('members')}>
+                      Cadastrar primeiro membro
+                    </button>
+                  )}
+                </div>
                 <div className="field">
                   <label htmlFor="date">Data</label>
                   <input
@@ -284,34 +376,6 @@ export default function Home() {
                     value={entry.amount || ''}
                     onChange={(e) => setEntry((v) => ({ ...v, amount: Number(e.target.value) }))}
                   />
-                </div>
-                <div className="field full">
-                  <label htmlFor="ename">Nome</label>
-                  <select
-                    id="ename"
-                    required
-                    value={entry.name}
-                    onChange={(e) => setEntry((v) => ({ ...v, name: e.target.value }))}
-                  >
-                    <option value="">
-                      {members.length
-                        ? 'Selecione um membro'
-                        : 'Nenhum membro cadastrado — adicionar agora'}
-                    </option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.name}>
-                        {m.name}
-                      </option>
-                    ))}
-                    {entry.name && !members.some((m) => m.name === entry.name) && (
-                      <option value={entry.name}>{entry.name} (registro antigo)</option>
-                    )}
-                  </select>
-                  {!members.length && (
-                    <button className="secondary" type="button" onClick={() => switchTo('members')}>
-                      Cadastrar primeiro membro
-                    </button>
-                  )}
                 </div>
                 <div className="field full">
                   <label htmlFor="reference">Referência</label>
@@ -363,6 +427,8 @@ export default function Home() {
                     onClick={() => {
                       setEntry(blankEntry());
                       setEntryEdit(null);
+                      setNameQuery('');
+                      setNameOpen(false);
                     }}
                   >
                     Cancelar
