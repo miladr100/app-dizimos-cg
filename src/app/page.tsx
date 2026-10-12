@@ -186,7 +186,7 @@ export default function Home() {
   const nameSuggestions = useMemo(() => {
     const term = fold(nameQuery.trim());
     if (!term) return [];
-    const found = members
+    const found: { id: string; name: string; category: string }[] = members
       .filter((m) => fold(m.name).includes(term))
       .map((m) => ({ id: m.id, name: m.name, category: m.category }));
     const original = entries.find((item) => item.id === entryEdit)?.name;
