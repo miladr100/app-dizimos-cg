@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2, RefreshCw, Users, Receipt, Eye, EyeOff } from 'lucide-react';
+import { Pencil, Trash2, RefreshCw, Users, Receipt, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { Member, Entry, categories, entryCategories, payments } from '@/lib/types';
 import { blankMember, money } from '@/lib/constants';
 import { api, blankEntry, fmtDate, message, type EntryForm } from '@/lib/helpers';
@@ -281,10 +281,16 @@ export default function Home() {
             Consulta
           </button>
         </nav>
-        <span className="status">
-          <span className="dot" />
-          {lastUpdate ? `Atualizado às ${lastUpdate}` : 'Conectando...'}
-        </span>
+        <div className="top-actions">
+          <a className="sheet-link" href="/planilha" target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={15} />
+            Planilha
+          </a>
+          <span className="status">
+            <span className="dot" />
+            {lastUpdate ? `Atualizado às ${lastUpdate}` : 'Conectando...'}
+          </span>
+        </div>
       </header>
 
       {notice && (
