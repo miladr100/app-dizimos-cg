@@ -15,9 +15,9 @@ Não existe coluna mensal nem geração automática de totais. A categoria do me
 
 ## 1. Preparar o Google Sheets
 
-A planilha definida pelo usuário é:
+A planilha definida pelo usuário:
 
-https://docs.google.com/spreadsheets/d/1Qb6YnJS8EI4ALzj2SuZF4wDkHDiEnxl4wjo5-_10aKE/edit
+https://docs.google.com/spreadsheets/d/[id_da_planilha]
 
 Confira os nomes das abas: `Dizimos` (sem acento) e `Membros` (com M maiúsculo), e os cabeçalhos na linha 1. A planilha deve estar configurada com localidade **Brasil** para interpretar datas `dd/mm/aaaa` corretamente.
 
