@@ -502,12 +502,25 @@ select:focus {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
 .toolbar .search {
   margin-top: 0;
+  flex: 1 1 220px;
+}
+
+.month-filter {
+  flex: 0 0 auto;
+  min-width: 180px;
+  background: var(--input);
+  border: 1px solid var(--stroke);
+  border-radius: 9px;
+  min-height: 44px;
+  color: white;
+  padding: 0 13px;
 }
 
 .toolbar .mini {

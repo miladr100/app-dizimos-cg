@@ -14,6 +14,19 @@ function fold(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
 }
 
+function monthKey(date: string) {
+  return /^\d{4}-\d{2}/.test(date) ? date.slice(0, 7) : '';
+}
+
+function monthLabel(key: string) {
+  const [year, month] = key.split('-');
+  const label = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
+  return label.charAt(0).toLocaleUpperCase('pt-BR') + label.slice(1);
+}
+
 export default function Home() {
   const [section, setSection] = useState<Section>('entries');
   const [members, setMembers] = useState<Member[]>([]);
@@ -31,6 +44,7 @@ export default function Home() {
   const [nameQuery, setNameQuery] = useState('');
   const [nameOpen, setNameOpen] = useState(false);
   const [showTotal, setShowTotal] = useState(true);
+  const [reportMonth, setReportMonth] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -73,9 +87,23 @@ export default function Home() {
     [entries, query],
   );
 
+  const monthOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const item of entries) {
+      const key = monthKey(item.date);
+      if (key) keys.add(key);
+    }
+    return [...keys].sort((a, b) => b.localeCompare(a));
+  }, [entries]);
+
+  const reportEntries = useMemo(
+    () => filteredEntries.filter((item) => !reportMonth || monthKey(item.date) === reportMonth),
+    [filteredEntries, reportMonth],
+  );
+
   const entriesTotal = useMemo(
-    () => filteredEntries.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0),
-    [filteredEntries],
+    () => reportEntries.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0),
+    [reportEntries],
   );
 
   const entryComplete =
@@ -286,9 +314,22 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <span className="counter">{filteredEntries.length}</span>
+            <span className="counter">{reportEntries.length}</span>
           </div>
           <div className="toolbar">
+            <select
+              className="month-filter"
+              aria-label="Filtrar por mês"
+              value={reportMonth}
+              onChange={(e) => setReportMonth(e.target.value)}
+            >
+              <option value="">Todos os meses</option>
+              {monthOptions.map((key) => (
+                <option key={key} value={key}>
+                  {monthLabel(key)}
+                </option>
+              ))}
+            </select>
             <input
               className="search"
               aria-label="Pesquisar lançamentos"
@@ -309,21 +350,21 @@ export default function Home() {
           </div>
           {loading ? (
             <div className="loader">Atualizando planilha...</div>
-          ) : filteredEntries.length === 0 ? (
+          ) : reportEntries.length === 0 ? (
             <div className="blank">
               <div className="round-icon">
                 <Receipt size={23} />
               </div>
-              <h3>{query ? 'Nenhum resultado encontrado' : 'Nenhum lançamento ainda'}</h3>
+              <h3>{query || reportMonth ? 'Nenhum resultado encontrado' : 'Nenhum lançamento ainda'}</h3>
               <p>
-                {query
-                  ? 'Tente outro termo.'
+                {query || reportMonth
+                  ? 'Tente outro mês ou outro termo.'
                   : 'Os registros salvos aparecerão aqui, do mais recente para o mais antigo.'}
               </p>
             </div>
           ) : (
             <div className="list">
-              {filteredEntries.map((item) => (
+              {reportEntries.map((item) => (
                 <article className="item" key={item.id}>
                   <div className="entry-line">
                     <div>
