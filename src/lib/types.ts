@@ -14,6 +14,7 @@ export type Entry = {
   amount: number;
   category: string;
   payment: string;
+  postedOn: string;
 };
 
 export const categories = ['Indivíduo', 'Casal', 'Família'] as const;

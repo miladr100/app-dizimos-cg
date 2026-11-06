@@ -6,7 +6,17 @@ const sheetId = process.env.GOOGLE_SHEET_ID;
 const sheetNames = { members: 'Membros', entries: 'Dizimos' } as const;
 const headers = {
   members: ['NOME', 'CATEGORIA', '_APP_ID'],
-  entries: ['DATA', 'NOME', 'REFERÊNCIA', 'VALOR', 'CATEGORIA', 'FORMA DE PAGAMENTO', '_APP_ID'],
+  entries: [
+    'DATA',
+    'NOME',
+    'REFERÊNCIA',
+    'VALOR',
+    'CATEGORIA',
+    'FORMA DE PAGAMENTO',
+    'DATA LANÇAMENTO',
+    'LANÇADO',
+    '_APP_ID',
+  ],
 } as const;
 
 function client() {
@@ -25,10 +35,53 @@ function client() {
 
 const range = (type: 'members' | 'entries', a1: string) => `'${sheetNames[type]}'!${a1}`;
 
+async function ensurePostedColumns(api: sheets_v4.Sheets) {
+  const current = await api.spreadsheets.values.get({
+    spreadsheetId: sheetId!,
+    range: range('entries', 'A1:I1'),
+    valueRenderOption: 'FORMATTED_VALUE',
+  });
+  const header = ((current.data.values?.[0] ?? []) as (string | number)[]).map((value) =>
+    String(value ?? '').trim().toLocaleUpperCase('pt-BR'),
+  );
+  const business = ['DATA', 'NOME', 'REFERÊNCIA', 'VALOR', 'CATEGORIA', 'FORMA DE PAGAMENTO'];
+  if (business.some((name, index) => header[index] !== name)) return;
+  if (header[6] === 'DATA LANÇAMENTO' && header[7] === 'LANÇADO') return;
+  if (header[6] !== '_APP_ID') {
+    throw new Error('Confira os cabeçalhos da aba Dizimos. Não foi possível criar DATA LANÇAMENTO e LANÇADO.');
+  }
+  const stored = await api.spreadsheets.values.get({
+    spreadsheetId: sheetId!,
+    range: range('entries', 'G2:G'),
+    valueRenderOption: 'FORMATTED_VALUE',
+  });
+  const ids = ((stored.data.values ?? []) as (string | number)[][]).map((row) => [row?.[0] ?? '']);
+  if (ids.length) {
+    await api.spreadsheets.values.update({
+      spreadsheetId: sheetId!,
+      range: range('entries', `I2:I${ids.length + 1}`),
+      valueInputOption: 'RAW',
+      requestBody: { values: ids },
+    });
+  }
+  await api.spreadsheets.values.update({
+    spreadsheetId: sheetId!,
+    range: range('entries', 'G1:I1'),
+    valueInputOption: 'RAW',
+    requestBody: { values: [['DATA LANÇAMENTO', 'LANÇADO', '_APP_ID']] },
+  });
+  if (ids.length) {
+    await api.spreadsheets.values.clear({
+      spreadsheetId: sheetId!,
+      range: range('entries', `G2:G${ids.length + 1}`),
+    });
+  }
+}
+
 async function readRaw(api: sheets_v4.Sheets, type: 'members' | 'entries') {
   const result = await api.spreadsheets.values.get({
     spreadsheetId: sheetId!,
-    range: range(type, type === 'members' ? 'A:C' : 'A:G'),
+    range: range(type, type === 'members' ? 'A:C' : 'A:I'),
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'FORMATTED_STRING',
   });
@@ -36,8 +89,9 @@ async function readRaw(api: sheets_v4.Sheets, type: 'members' | 'entries') {
 }
 
 async function ensureIds(api: sheets_v4.Sheets, type: 'members' | 'entries') {
+  if (type === 'entries') await ensurePostedColumns(api);
   const data = await readRaw(api, type);
-  const cols = type === 'members' ? 3 : 7;
+  const cols = type === 'members' ? 3 : 9;
   const expected = headers[type];
   if (
     !data.length ||
@@ -114,6 +168,13 @@ function memRow(r: (string | number)[]): Member {
 }
 
 function dateIso(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
   const s = String(value ?? '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -123,13 +184,14 @@ function dateIso(value: unknown) {
 
 function entryRow(r: (string | number)[]): Entry {
   return {
-    id: String(r[6]),
+    id: String(r[8]),
     date: dateIso(r[0]),
     name: String(r[1] ?? ''),
     reference: String(r[2] ?? ''),
     amount: Number(r[3] ?? 0),
     category: String(r[4] ?? ''),
     payment: String(r[5] ?? ''),
+    postedOn: isoDateOrEmpty(r[6]),
   };
 }
 
@@ -148,13 +210,13 @@ export async function listEntries() {
   const rows = await ensureIds(api, 'entries');
   return rows
     .slice(1)
-    .filter((r) => r[0] && r[6])
+    .filter((r) => r[0] && r[8])
     .map(entryRow)
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 function matchingRow(rows: (string | number)[][], id: string, col: number) {
-  const index = rows.findIndex((r, i) => i > 0 && String(r[col] ?? '') === id);
+  const index = rows.findIndex((r, i) => i > 0 && String(r[col] ?? '').trim() === id);
   if (index < 0) throw new RecordMissingError();
   return { row: index + 1, data: rows[index] };
 }
@@ -242,19 +304,19 @@ async function deleteAt(type: 'members' | 'entries', id: string, col: number) {
 }
 
 export const deleteMember = (id: string) => deleteAt('members', id, 2);
-export const deleteEntry = (id: string) => deleteAt('entries', id, 6);
+export const deleteEntry = (id: string) => deleteAt('entries', id, 8);
 
-export async function createEntry(input: Omit<Entry, 'id'>) {
+export async function createEntry(input: Omit<Entry, 'id' | 'postedOn'>) {
   const api = client();
   await ensureIds(api, 'entries');
-  const value: Entry = { id: randomUUID(), ...input };
+  const value: Entry = { id: randomUUID(), postedOn: '', ...input };
   await api.spreadsheets.values.append({
     spreadsheetId: sheetId!,
-    range: range('entries', 'A:G'),
+    range: range('entries', 'A:I'),
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: {
-      values: [[toBr(input.date), input.name, input.reference, input.amount, input.category, input.payment, value.id]],
+      values: [[toBr(input.date), input.name, input.reference, input.amount, input.category, input.payment, '', '', value.id]],
     },
   });
   return value;
@@ -265,17 +327,45 @@ function toBr(date: string) {
   return `${d}/${m}/${y}`;
 }
 
-export async function updateEntry(id: string, input: Omit<Entry, 'id'>) {
+export async function updateEntry(id: string, input: Omit<Entry, 'id' | 'postedOn'>) {
   const api = client();
   const data = await ensureIds(api, 'entries');
-  const { row } = matchingRow(data, id, 6);
+  const { row } = matchingRow(data, id, 8);
   await api.spreadsheets.values.update({
     spreadsheetId: sheetId!,
-    range: range('entries', `A${row}:G${row}`),
+    range: range('entries', `A${row}:F${row}`),
     valueInputOption: 'USER_ENTERED',
     requestBody: {
-      values: [[toBr(input.date), input.name, input.reference, input.amount, input.category, input.payment, id]],
+      values: [[toBr(input.date), input.name, input.reference, input.amount, input.category, input.payment]],
     },
   });
-  return { id, ...input };
+  return { id, postedOn: isoDateOrEmpty(data[row - 1]?.[6]), ...input };
+}
+
+export async function setEntryPosted(id: string, posted: boolean) {
+  const api = client();
+  const data = await ensureIds(api, 'entries');
+  const { row } = matchingRow(data, id, 8);
+  const postedOn = posted ? todayInCampoGrande() : '';
+  await api.spreadsheets.values.update({
+    spreadsheetId: sheetId!,
+    range: range('entries', `G${row}:H${row}`),
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[postedOn ? toBr(postedOn) : '', posted ? 'Sim' : '']] },
+  });
+  return { id, postedOn };
+}
+
+function todayInCampoGrande() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Campo_Grande',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function isoDateOrEmpty(value: unknown) {
+  const iso = dateIso(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '';
 }

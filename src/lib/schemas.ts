@@ -18,6 +18,13 @@ export const idSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const postedSchema = z
+  .object({
+    id: z.string().uuid(),
+    posted: z.boolean(),
+  })
+  .strict();
+
 export function normalizeName(input: string) {
   return input
     .normalize('NFD')

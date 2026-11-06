@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { listEntries, createEntry, updateEntry, deleteEntry } from '@/lib/sheets';
-import { entrySchema, idSchema } from '@/lib/schemas';
+import { entrySchema, idSchema, postedSchema } from '@/lib/schemas';
+import { listEntries, createEntry, updateEntry, deleteEntry, setEntryPosted } from '@/lib/sheets';
 import { blocked, responseError, ok } from '@/lib/http';
 
 export const runtime = 'nodejs';
@@ -30,7 +30,12 @@ export async function PATCH(req: NextRequest) {
   const b = blocked(req, true);
   if (b) return b;
   try {
-    const { id, ...rest } = await req.json();
+    const body = await req.json();
+    if (body && typeof body === 'object' && 'posted' in body) {
+      const parsed = postedSchema.parse(body);
+      return ok(await setEntryPosted(parsed.id, parsed.posted));
+    }
+    const { id, ...rest } = body;
     idSchema.parse({ id });
     return ok(await updateEntry(id, entrySchema.parse(rest)));
   } catch (e) {

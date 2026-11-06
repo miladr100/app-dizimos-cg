@@ -398,6 +398,31 @@ select:focus {
   background: #14221c;
 }
 
+.item.posted {
+  border-color: #1b6b45;
+  background:
+    linear-gradient(#1ed760, #1ed760) top / 100% 7px no-repeat,
+    #163028;
+  padding-top: 20px;
+}
+
+.item.open {
+  border-color: #3d6b56;
+}
+
+.card-open {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .item-head {
   display: flex;
   justify-content: space-between;

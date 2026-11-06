@@ -45,6 +45,9 @@ export default function Home() {
   const [nameOpen, setNameOpen] = useState(false);
   const [showTotal, setShowTotal] = useState(true);
   const [reportMonth, setReportMonth] = useState('');
+  const [reportPosted, setReportPosted] = useState('');
+  const [postingId, setPostingId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -97,8 +100,14 @@ export default function Home() {
   }, [entries]);
 
   const reportEntries = useMemo(
-    () => filteredEntries.filter((item) => !reportMonth || monthKey(item.date) === reportMonth),
-    [filteredEntries, reportMonth],
+    () =>
+      filteredEntries.filter((item) => {
+        if (reportMonth && monthKey(item.date) !== reportMonth) return false;
+        if (reportPosted === 'yes' && !item.postedOn) return false;
+        if (reportPosted === 'no' && item.postedOn) return false;
+        return true;
+      }),
+    [filteredEntries, reportMonth, reportPosted],
   );
 
   const entriesTotal = useMemo(
@@ -254,6 +263,22 @@ export default function Home() {
     setNameOpen(false);
   }
 
+  async function togglePosted(item: Entry) {
+    setPostingId(item.id);
+    setNotice(null);
+    try {
+      const updated = await api<{ id: string; postedOn: string }>('entries', 'PATCH', {
+        id: item.id,
+        posted: !item.postedOn,
+      });
+      setEntries((list) => list.map((row) => (row.id === item.id ? { ...row, postedOn: updated.postedOn } : row)));
+    } catch (err) {
+      setNotice({ error: true, message: message(err) });
+    } finally {
+      setPostingId(null);
+    }
+  }
+
   return (
     <main className="shell">
       <InstallPrompt />
@@ -303,7 +328,7 @@ export default function Home() {
         <section className="report">
           <div className="eyebrow">CONSULTA</div>
           <h1 className="heading">Lançamentos</h1>
-          <p className="subtitle">Visão dos registros salvos, sem alteração.</p>
+          <p className="subtitle">Consulte os registros e marque os que já foram lançados.</p>
           <div className="total-banner">
             <div>
               <span className="eyebrow">TOTAL</span>
@@ -336,6 +361,16 @@ export default function Home() {
                 </option>
               ))}
             </select>
+            <select
+              className="month-filter"
+              aria-label="Filtrar por lançamento"
+              value={reportPosted}
+              onChange={(e) => setReportPosted(e.target.value)}
+            >
+              <option value="">Lançados e não lançados</option>
+              <option value="yes">Lançados</option>
+              <option value="no">Não lançados</option>
+            </select>
             <input
               className="search"
               aria-label="Pesquisar lançamentos"
@@ -361,43 +396,94 @@ export default function Home() {
               <div className="round-icon">
                 <Receipt size={23} />
               </div>
-              <h3>{query || reportMonth ? 'Nenhum resultado encontrado' : 'Nenhum lançamento ainda'}</h3>
+              <h3>{query || reportMonth || reportPosted ? 'Nenhum resultado encontrado' : 'Nenhum lançamento ainda'}</h3>
               <p>
-                {query || reportMonth
-                  ? 'Tente outro mês ou outro termo.'
+                {query || reportMonth || reportPosted
+                  ? 'Tente outro filtro ou outro termo.'
                   : 'Os registros salvos aparecerão aqui, do mais recente para o mais antigo.'}
               </p>
             </div>
           ) : (
             <div className="list">
               {reportEntries.map((item) => (
-                <article className="item" key={item.id}>
-                  <div className="entry-line">
-                    <div>
-                      <span>Data</span>
-                      <strong>{fmtDate(item.date)}</strong>
+                <article
+                  className={'item' + (item.postedOn ? ' posted' : '') + (actionId === item.id ? ' open' : '')}
+                  key={item.id}
+                  data-entry-card
+                >
+                  <button
+                    type="button"
+                    className="card-open"
+                    aria-expanded={actionId === item.id}
+                    onClick={() => setActionId((current) => (current === item.id ? null : item.id))}
+                  >
+                    <div className="entry-line">
+                      <div>
+                        <span>Data</span>
+                        <strong>{fmtDate(item.date)}</strong>
+                      </div>
+                      <div>
+                        <span>Nome</span>
+                        <strong>{item.name}</strong>
+                      </div>
+                      <div>
+                        <span>Referência</span>
+                        <strong>{item.reference || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Valor</span>
+                        <strong className="amount">{money.format(item.amount)}</strong>
+                      </div>
+                      <div>
+                        <span>Categoria</span>
+                        <strong>{item.category}</strong>
+                      </div>
+                      <div>
+                        <span>Pagamento</span>
+                        <strong>{item.payment}</strong>
+                      </div>
+                      <div>
+                        <span>Lançamento</span>
+                        <strong>{item.postedOn ? fmtDate(item.postedOn) : 'Não lançado'}</strong>
+                      </div>
                     </div>
-                    <div>
-                      <span>Nome</span>
-                      <strong>{item.name}</strong>
+                  </button>
+                  {actionId === item.id && (
+                    <div className="item-actions">
+                      <button
+                        type="button"
+                        className="mini"
+                        disabled={postingId === item.id}
+                        onClick={() => void togglePosted(item)}
+                      >
+                        {postingId === item.id
+                          ? 'Salvando...'
+                          : item.postedOn
+                            ? 'Desmarcar lançamento'
+                            : 'Marcar como lançado'}
+                      </button>
+                      <button
+                        type="button"
+                        className="mini"
+                        onClick={() => {
+                          setActionId(null);
+                          editEntry(item);
+                        }}
+                      >
+                        <Pencil size={14} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="mini delete"
+                        onClick={() => {
+                          setActionId(null);
+                          setConfirm({ type: 'entries', id: item.id, name: item.name });
+                        }}
+                      >
+                        <Trash2 size={14} /> Excluir
+                      </button>
                     </div>
-                    <div>
-                      <span>Referência</span>
-                      <strong>{item.reference || '—'}</strong>
-                    </div>
-                    <div>
-                      <span>Valor</span>
-                      <strong className="amount">{money.format(item.amount)}</strong>
-                    </div>
-                    <div>
-                      <span>Categoria</span>
-                      <strong>{item.category}</strong>
-                    </div>
-                    <div>
-                      <span>Pagamento</span>
-                      <strong>{item.payment}</strong>
-                    </div>
-                  </div>
+                  )}
                 </article>
               ))}
             </div>
@@ -510,7 +596,7 @@ export default function Home() {
                   </div>
                   {!members.length && (
                     <button className="secondary" type="button" onClick={() => switchTo('members')}>
-                      Cadastrar primeiro membro
+                      Cadastrar membro
                     </button>
                   )}
                 </div>
